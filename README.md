@@ -8,36 +8,41 @@ An end-to-end Retrieval-Augmented Generation system for querying 145 years of FI
 
 User queries are embedded with `all-MiniLM-L6-v2` and matched against a FAISS index of ~900 World Cup match records. A ReAct agent then decides which combination of tools to invoke. Some queries go straight to the retrieval tool; others chain through the reasoning tool first, then the LLM synthesis tool, then the prediction report generator. Conversation memory (LangChain `ConversationBufferMemory`) keeps multi-turn context coherent within a session.
 
-```mermaid
-flowchart TD
-    U([User Query]) --> A
-
-    A["ReAct Agent\nGemini 2.5 Flash · temp=0.3"]
-
-    A --> T1["dataset_discovery_tool\nSchema · date range · teams"]
-    A --> T2["data_ingestion_tool\nMatch counts · goal averages"]
-    A --> T3["retrieval_tool\nFAISS semantic search · k=10"]
-    A --> T4["reasoning_tool\nExact H2H · wins · goals · form"]
-    A --> T5["llm_synthesis_tool\nGemini synthesis over context"]
-    A --> T6["report_generation_tool\nStructured prediction report"]
-
-    T3 --> VS[("FAISS Index\n~900 WC matches")]
-    T4 --> DF[("Match DataFrame\n1930–2017")]
-    T5 --> LLM["Gemini 2.5 Flash"]
-    T6 --> T4
-    T6 --> LLM
-
-    T1 --> R([Answer])
-    T2 --> R
-    T5 --> R
-    T6 --> R
-
-    style A fill:#1e3a5f,color:#fff,stroke:#1e3a5f
-    style VS fill:#2d6a4f,color:#fff,stroke:#2d6a4f
-    style DF fill:#2d6a4f,color:#fff,stroke:#2d6a4f
-    style LLM fill:#6b3fa0,color:#fff,stroke:#6b3fa0
-    style U fill:#f0f0f0,color:#333,stroke:#ccc
-    style R fill:#f0f0f0,color:#333,stroke:#ccc
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        User Query                           │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│            ReAct Agent  ·  Gemini 2.5 Flash (temp=0.3)      │
+│                  LangChain ConversationBufferMemory          │
+└──┬──────────┬──────────┬──────────┬──────────┬─────────────┘
+   │          │          │          │          │
+   ▼          ▼          ▼          ▼          ▼
+┌──────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌───────────────┐
+│data  │ │data    │ │retrieval│ │reasoning│ │ llm_synthesis │
+│disco-│ │ingest- │ │_tool    │ │_tool    │ │ _tool         │
+│very  │ │ion     │ │         │ │         │ │               │
+└──────┘ └────────┘ └────┬────┘ └────┬────┘ └───────┬───────┘
+                         │           │               │
+                         ▼           ▼               ▼
+                    ┌─────────┐ ┌─────────┐   ┌───────────┐
+                    │  FAISS  │ │  Match  │   │  Gemini   │
+                    │  Index  │ │  Data-  │   │  2.5 Flash│
+                    │ ~900 doc│ │  frame  │   └─────┬─────┘
+                    └─────────┘ └────┬────┘         │
+                                     │         ┌────▼──────────────┐
+                                     └────────►│report_generation  │
+                                               │_tool              │
+                                               │(chains reasoning  │
+                                               │+ Gemini)          │
+                                               └───────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                         Answer                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
