@@ -1,83 +1,144 @@
-# ⚽ World Cup RAG System with LLM Agent
+# World Cup RAG System — LangChain Agent + Gemini + FAISS
 
-An end-to-end Retrieval-Augmented Generation (RAG) system that enables intelligent querying over historical FIFA World Cup data using LangChain agents, FAISS vector search, and Google Gemini LLM.
-
----
-
-## 🚀 Project Highlights
-
-- Multi-tool LLM agent using LangChain (ReAct)
-- Semantic search with FAISS
-- Gemini (gemini-2.5-flash) for reasoning
-- 6-tool modular pipeline
-- Conversation memory
-- Streamlit + localtunnel deployment
+An end-to-end Retrieval-Augmented Generation system for querying 145 years of FIFA World Cup history. A LangChain ReAct agent routes each user query through a six-tool pipeline — semantic retrieval, head-to-head computation, LLM synthesis, and prediction reporting — before returning a grounded, evidence-backed answer.
 
 ---
 
-## 🏗️ Architecture
+## How it works
 
-User Query → Agent → Tools → Gemini → Answer
+User queries are embedded with `all-MiniLM-L6-v2` and matched against a FAISS index of ~900 World Cup match records. A ReAct agent then decides which combination of tools to invoke. Some queries go straight to the retrieval tool; others chain through the reasoning tool first, then the LLM synthesis tool, then the prediction report generator. Conversation memory (LangChain `ConversationBufferMemory`) keeps multi-turn context coherent within a session.
 
----
+```mermaid
+flowchart TD
+    U([User Query]) --> A
 
-## 📂 Dataset
+    A["ReAct Agent\nGemini 2.5 Flash · temp=0.3"]
 
-- Kaggle international football results  
-- Filtered to FIFA World Cup  
-- 1872–2017  
+    A --> T1["dataset_discovery_tool\nSchema · date range · teams"]
+    A --> T2["data_ingestion_tool\nMatch counts · goal averages"]
+    A --> T3["retrieval_tool\nFAISS semantic search · k=10"]
+    A --> T4["reasoning_tool\nExact H2H · wins · goals · form"]
+    A --> T5["llm_synthesis_tool\nGemini synthesis over context"]
+    A --> T6["report_generation_tool\nStructured prediction report"]
 
----
+    T3 --> VS[("FAISS Index\n~900 WC matches")]
+    T4 --> DF[("Match DataFrame\n1930–2017")]
+    T5 --> LLM["Gemini 2.5 Flash"]
+    T6 --> T4
+    T6 --> LLM
 
-## 🔍 Vector Search
+    T1 --> R([Answer])
+    T2 --> R
+    T5 --> R
+    T6 --> R
 
-- Embeddings: all-MiniLM-L6-v2  
-- FAISS with caching  
-
----
-
-## 🤖 LLM & Agent
-
-- Gemini (temp=0.3)  
-- ReAct agent  
-- Conversation memory  
-
----
-
-## 🧰 Tools
-
-- Dataset discovery  
-- Retrieval  
-- Match analysis  
-- Prediction  
-- Reasoning  
-- Visualization  
+    style A fill:#1e3a5f,color:#fff,stroke:#1e3a5f
+    style VS fill:#2d6a4f,color:#fff,stroke:#2d6a4f
+    style DF fill:#2d6a4f,color:#fff,stroke:#2d6a4f
+    style LLM fill:#6b3fa0,color:#fff,stroke:#6b3fa0
+    style U fill:#f0f0f0,color:#333,stroke:#ccc
+    style R fill:#f0f0f0,color:#333,stroke:#ccc
+```
 
 ---
 
-## 📊 Features
+## Tools
 
-- Semantic querying  
-- Match prediction  
-- Context awareness  
-- Plotly visualization  
+| Tool | What it does |
+|------|-------------|
+| `dataset_discovery_tool` | Returns dataset schema, date range, and available teams |
+| `data_ingestion_tool` | Summary stats: match counts, goal averages, most frequent teams |
+| `retrieval_tool` | Semantic similarity search over FAISS index — used for historical match questions |
+| `reasoning_tool` | Exact H2H computation: wins, losses, draws, goal tallies, last-5 form |
+| `llm_synthesis_tool` | Passes retrieved context to Gemini for natural language synthesis |
+| `report_generation_tool` | Chains reasoning + Gemini to produce structured prediction reports |
 
----
-
-## 💻 Tech Stack
-
-Python, LangChain, Gemini, FAISS, HuggingFace, Pandas, Plotly, Streamlit  
-
----
-
-## ▶️ Run
-
-jupyter notebook  
-streamlit run app.py  
+The agent prompt includes explicit routing hints (`Use retrieval_tool for history, reasoning_tool for H2H, report_generation_tool for predictions`) to reduce unnecessary tool calls.
 
 ---
 
-## 📫 Contact
+## Dataset
 
-GitHub: https://github.com/v-arun2002  
+**Source:** [Kaggle — International Football Results 1872–2017](https://www.kaggle.com/datasets/martj42/international-football-results-from-1872-to-2017) (martj42)
 
+The dataset is filtered to FIFA World Cup main tournament matches only — qualification rounds are excluded. Each match is converted to a natural-language sentence for embedding:
+
+```
+On July 13, 2014, in the FIFA World Cup, Germany played against Argentina
+in Rio de Janeiro, Brazil. The score was Germany 1 - 0 Argentina. Result: home win.
+```
+
+**Data cutoff: 2017.** Post-2018 World Cup matches (Russia 2018, Qatar 2022) are not in the dataset. Prediction queries are grounded in historical records only — the agent does not have knowledge of current squads, injuries, or recent form beyond 2017.
+
+---
+
+## Stack
+
+| Component | Technology |
+|-----------|-----------|
+| LLM | Gemini 2.5 Flash (`langchain-google-genai`) |
+| Agent | LangChain ReAct (`create_react_agent`) |
+| Vector store | FAISS (`langchain-community`) |
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
+| Data | Pandas |
+| Visualization | Plotly |
+| UI | Streamlit |
+| Deployment | localtunnel (Colab) |
+
+---
+
+## Setup & Run
+
+**1. Install dependencies**
+```bash
+pip install "langchain>=0.3,<1.0" "langchain-core>=0.3,<1.0" "langchain-community>=0.3,<1.0" \
+    langchain-google-genai faiss-cpu sentence-transformers pandas numpy plotly
+```
+
+**2. Set your Gemini API key**
+
+In Colab (recommended): add `GEMINI_API_KEY` to Colab Secrets.
+
+Or directly:
+```python
+os.environ["GOOGLE_API_KEY"] = "your-key-here"
+```
+
+**3. Run the notebook**
+```bash
+jupyter notebook worldcup_chatbot_Code.ipynb
+```
+
+**4. Launch the Streamlit app**
+```bash
+streamlit run app.py
+# or in Colab:
+!npx localtunnel --port 8501 &
+!streamlit run app.py --server.port 8501 &
+```
+
+The FAISS index is built on first run and cached to `cache/faiss_index/` — subsequent runs load from cache.
+
+---
+
+## Example queries
+
+- *"What happened in the 2014 World Cup final?"* — routes through `retrieval_tool`
+- *"Compare Brazil and Germany's World Cup record"* — routes through `reasoning_tool`
+- *"Predict a World Cup match between Argentina and France"* — chains `reasoning_tool` → `report_generation_tool`
+- *"What World Cup data do you have?"* — routes through `dataset_discovery_tool`
+
+---
+
+## Design notes & limitations
+
+- **`reasoning_tool` uses exact string matching** to identify team names from the query. Typos or alternate names (e.g., "West Germany" vs "Germany") may cause it to fail to find both teams and return an error.
+- **`ConversationBufferMemory` has no token cap.** Long sessions accumulate unbounded history, which will eventually hit Gemini's context window limit.
+- **`llm_synthesis_tool` is a pass-through** — it wraps any string in a Gemini prompt. The agent can route queries there directly without retrieval, which means not all answers are grounded in the vector DB.
+- **No post-2017 data.** Any question about 2018, 2022, or 2026 World Cup events will fall outside the dataset.
+
+---
+
+## Author
+
+**Arun V** — [github.com/v-arun2002](https://github.com/v-arun2002)
